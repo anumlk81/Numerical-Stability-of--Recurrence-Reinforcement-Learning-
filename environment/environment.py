@@ -53,6 +53,7 @@ class GridWorldEnv:
         self,
         size: int = 10,
         obs_radius: int = 2,
+        full_obs: bool = False,
         max_steps: int | None = None,
         wall_density: float = 0.15,
         seed: int | None = None,
@@ -66,6 +67,7 @@ class GridWorldEnv:
 
         self.size         = size
         self.obs_radius   = obs_radius
+        self.full_obs      = full_obs
         self.max_steps    = max_steps if max_steps is not None else 4 * size * size
         self.wall_density = wall_density
 
@@ -234,19 +236,31 @@ class GridWorldEnv:
 
     def _observe(self) -> np.ndarray:
         """
-        Extract a (2*radius+1)^2 local window centred on the agent.
-
-        Out-of-bound cells are treated as walls. Values are normalised to [0, 1]
-        by dividing by the number of distinct cell types (4).
-
+        Build the observation vector.
+ 
+        full_obs=False (default):
+            Flat (2*radius+1)^2 local window centred on the agent.
+            Out-of-bound cells are treated as walls.
+ 
+        full_obs=True:
+            Flat size^2 vector of the entire grid with agent and goal
+            positions overlaid.
+ 
+        Values normalised to [0, 1] by dividing by 3 (max cell type index).
+ 
         Returns
         -------
         np.ndarray, shape (obs_dim,), dtype float32
         """
+        if self.full_obs:
+            return self._observe_full()
+        return self._observe_local()
+ 
+    def _observe_local(self) -> np.ndarray:
         r, c   = self._agent_pos
         radius = self.obs_radius
         window = np.full((2 * radius + 1, 2 * radius + 1), WALL, dtype=np.float32)
-
+ 
         for dr in range(-radius, radius + 1):
             for dc in range(-radius, radius + 1):
                 nr, nc = r + dr, c + dc
@@ -258,6 +272,13 @@ class GridWorldEnv:
                         window[wr, wc] = GOAL
                     else:
                         window[wr, wc] = self._grid[nr, nc]
-
-        return (window.flatten() / 3.0).astype(np.float32)  # normalise to [0,1]
-    
+ 
+        return (window.flatten() / 3.0).astype(np.float32)
+ 
+    def _observe_full(self) -> np.ndarray:
+        grid = self._grid.astype(np.float32).copy()
+        ar, ac = self._agent_pos
+        gr, gc = self._goal_pos
+        grid[ar, ac] = AGENT
+        grid[gr, gc] = GOAL
+        return (grid.flatten() / 3.0).astype(np.float32)

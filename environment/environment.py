@@ -72,7 +72,7 @@ class GridWorldEnv:
         self.wall_density = wall_density
 
         self.rng          = np.random.default_rng(seed)
-        self.obs_dim      = (2 * obs_radius + 1) ** 2  # flat observation length
+        self.obs_dim      = size * size if full_obs else (2 * obs_radius + 1) ** 2
 
         # mutable state (initialised properly on reset)
         self._grid        = np.zeros((size, size), dtype=np.int32)

@@ -14,7 +14,7 @@ import collections
 import numpy as np
 
 sys.path.insert(0, ".")
-from environment.environment import GridWorldEnv, WALL, AGENT, GOAL
+from environment import GridWorldEnv, WALL, AGENT, GOAL
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +124,53 @@ check("step obs values in [0, 1]", float(obs2.min()) >= 0.0 and float(obs2.max()
 
 obs15 = env15.reset()
 check("15x15 obs shape is (25,)", obs15.shape == (25,), f"got {obs15.shape}")
+
+full_env = GridWorldEnv(size=10, obs_radius=2, full_obs=True, seed=0)
+full_obs = full_env.reset()
+check(
+    "full_obs observation_space_shape is (100,)",
+    full_env.observation_space_shape == (100,),
+    f"got {full_env.observation_space_shape}",
+)
+check(
+    "full_obs obs_dim is 100",
+    full_env.obs_dim == 100,
+    f"got {full_env.obs_dim}",
+)
+check(
+    "full_obs reset shape is (100,)",
+    full_obs.shape == (100,),
+    f"got {full_obs.shape}",
+)
+check(
+    "full_obs reset dtype is float32",
+    full_obs.dtype == np.float32,
+    f"got {full_obs.dtype}",
+)
+
+local_env = GridWorldEnv(size=10, obs_radius=2, full_obs=False, seed=0)
+local_obs = local_env.reset()
+check(
+    "full_obs and local envs build identical grids with the same seed",
+    np.array_equal(full_env._grid, local_env._grid)
+    and full_env._agent_pos == local_env._agent_pos
+    and full_env._goal_pos == local_env._goal_pos,
+)
+
+expected_full = full_env._grid.astype(np.float32).copy()
+ar, ac = full_env._agent_pos
+gr, gc = full_env._goal_pos
+expected_full[ar, ac] = AGENT
+expected_full[gr, gc] = GOAL
+check(
+    "full_obs exposes the complete flattened grid",
+    np.allclose(full_obs * 3.0, expected_full.flatten()),
+)
+check(
+    "full_obs differs from local window observation",
+    full_obs.shape != local_obs.shape,
+    f"local={local_obs.shape}, full={full_obs.shape}",
+)
 
 # ---------------------------------------------------------------------------
 # 3. Grid structure

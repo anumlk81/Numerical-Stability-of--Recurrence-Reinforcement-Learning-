@@ -23,22 +23,15 @@ Usage:
 
 import argparse
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 from environment.environment import GridWorldEnv
-from agents.common import compute_gae, collect_episode
+from agents.common import compute_gae, collect_episode, make_run_dir, save_arrays
 from agents.LSTM.agent import LSTMActorCritic, GradientDynamicsRecorder
 from agents.LSTM.config import LSTMConfig
-
-
-def resolve_device(device: str | None = None) -> str:
-    if device in (None, "auto"):
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    return device
 
 
 # --------------------------------------------------------------------------
@@ -129,9 +122,8 @@ def ppo_update(agent, optimizer, episodes, recorder, update_idx, cfg: LSTMConfig
 # --------------------------------------------------------------------------
 
 def train(seed=0, num_updates=500, size=10, obs_radius=2, full_obs=False,
-        output_dir="output", device="auto", cfg: LSTMConfig = None):
+          output_dir="output", device="cpu", cfg: LSTMConfig = None):
     cfg = cfg or LSTMConfig()
-    device = resolve_device(device)
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -140,6 +132,9 @@ def train(seed=0, num_updates=500, size=10, obs_radius=2, full_obs=False,
                              hidden_dim=cfg.hidden_dim).to(device)
     optimizer = torch.optim.Adam(agent.parameters(), lr=cfg.lr)
     recorder = GradientDynamicsRecorder(agent, jacobian_window=cfg.jacobian_window)
+
+    run_dir = make_run_dir(output_dir, "lstm", seed, full_obs)
+    print(f"Writing to {run_dir}")
 
     reward_history = []
     t_start = time.time()
@@ -160,24 +155,11 @@ def train(seed=0, num_updates=500, size=10, obs_radius=2, full_obs=False,
                   f"grad_norm={row['grad_norm']:.4f}  "
                   f"hidden_drift={row['hidden_state_drift']:.4f}  "
                   f"cond_full={row['condition_number_full']:.2f}")
+            save_arrays(run_dir, recorder, reward_history)
 
-    run_dir = save_run(output_dir, seed, full_obs, recorder, reward_history)
+    save_arrays(run_dir, recorder, reward_history)  # final save, covers any tail after the last checkpoint
+    print(f"Finished. Saved run to {run_dir}")
     return agent, recorder, reward_history, run_dir
-
-
-def save_run(output_dir, seed, full_obs, recorder, reward_history):
-    """Per-agent, per-seed output layout with a run timestamp, so repeated
-    runs never silently overwrite each other."""
-    obs_mode = "full_obs" if full_obs else "partial_obs"
-    run_dir = Path(output_dir) / "lstm" / obs_mode / f"seed_{seed}" / time.strftime("%Y%m%d_%H%M%S")
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    for name, array in recorder.to_arrays().items():
-        np.save(run_dir / f"{name}.npy", array)
-    np.save(run_dir / "reward_per_update.npy", np.array(reward_history, dtype=np.float32))
-
-    print(f"Saved run to {run_dir}")
-    return run_dir
 
 
 # --------------------------------------------------------------------------
@@ -200,8 +182,7 @@ def parse_args():
     parser.add_argument("--jacobian_window", type=int, default=20,
                          help="Number of consecutive steps the temporal Jacobian product is taken over")
     parser.add_argument("--output_dir", type=str, default="output")
-    parser.add_argument("--device", type=str, default="auto",
-                        help="Training device: auto, cpu, or cuda")
+    parser.add_argument("--device", type=str, default="cpu")
     return parser.parse_args()
 
 

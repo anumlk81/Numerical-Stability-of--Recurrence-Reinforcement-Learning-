@@ -33,8 +33,8 @@ import torch.nn.functional as F
 
 from environment.environment import GridWorldEnv
 from agents.common import compute_gae, collect_episode, make_run_dir, save_arrays
-from agents.feedforward_ppo.agent import FeedforwardActorCritic, FeedforwardDiagnosticsRecorder
-from agents.feedforward_ppo.config import FeedforwardConfig
+from agents.Feedforward.agent import FeedforwardActorCritic, FeedforwardDiagnosticsRecorder
+from agents.Feedforward.config import FeedforwardConfig
 
 
 # --------------------------------------------------------------------------

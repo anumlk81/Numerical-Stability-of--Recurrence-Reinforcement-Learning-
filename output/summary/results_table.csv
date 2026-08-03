@@ -1,0 +1,13 @@
+agent,seed,run_dir,n_checkpoints,reward_mean,reward_final,reward_std,grad_norm_mean,grad_norm_std,spectral_radius_mean,spectral_radius_std,spectral_radius_max,spectral_radius_skew,spectral_radius_kurtosis,n_spikes_rho_gt_0.05,hidden_state_drift_mean,condition_number_full_mean,condition_number_full_max,sr_reward_corr_r,sr_reward_corr_p,sr_gradnorm_corr_lag0_r,sr_gradnorm_best_lag,sr_gradnorm_best_r,condnum_sr_corr_lag0_r,condnum_sr_best_lag,condnum_sr_best_r
+lstm,0,output\lstm\partial_obs\seed_0\20260716_112004,50,-1.0283,-0.87,1.0162,0.2272,0.1116,0.003,0.0181,0.1282,6.6713,43.2284,1,0.1347,3.3179,4.1608,0.2284,0.1106,0.4154,0,0.4154,0.0969,10,0.1593
+lstm,1,output\lstm\partial_obs\seed_1\20260716_203109,50,-0.925,-0.145,0.827,0.2295,0.112,0.0115,0.0517,0.2784,4.6081,19.6397,2,0.1422,3.5079,4.4718,0.0097,0.9465,0.0027,1,0.2434,-0.1061,8,-0.0903
+lstm,2,output\lstm\partial_obs\seed_2\20260717_112015,50,-0.9166,-1.79,0.8734,0.2083,0.1103,0.0073,0.0502,0.3589,6.8565,45.0145,1,0.1546,3.5715,5.1065,0.2383,0.0956,0.2775,9,0.6624,0.0194,2,0.0285
+lstm,3,output\lstm\partial_obs\seed_3\20260717_134710,50,-0.9257,-2.7775,0.9745,0.3404,0.7256,0.0052,0.0208,0.1178,4.243,17.528,3,0.1581,3.6056,5.0245,0.3961,0.0044,0.0352,7,0.7589,0.0502,1,0.0566
+lstm,4,output\lstm\partial_obs\seed_4\20260718_130749,50,-1.0254,0.5475,0.8602,0.2206,0.0804,0.0084,0.0535,0.3814,6.7721,44.2135,1,0.1614,3.6195,4.8996,-0.0988,0.4949,-0.1513,2,0.3593,0.173,4,0.1936
+lstm,5,output\lstm\partial_obs\seed_5\20260718_234015,50,-1.0481,-2.2025,0.8658,0.1995,0.0809,0.0124,0.048,0.2935,4.6516,22.368,4,0.1506,3.7067,4.9409,0.0286,0.8435,0.0092,7,0.136,-0.0087,3,-0.0033
+feedforward,0,output\feedforward\partial_obs\seed_0\20260719_093656,50,-0.6069,0.3075,1.0152,0.5534,0.28,,,,,,,,,,,,,,,,,
+feedforward,1,output\feedforward\partial_obs\seed_1\20260719_104012,50,-0.8572,0.495,0.8883,0.5078,0.2524,,,,,,,,,,,,,,,,,
+feedforward,2,output\feedforward\partial_obs\seed_2\20260719_104034,50,-0.8735,-2.4475,0.9041,0.4242,0.1713,,,,,,,,,,,,,,,,,
+feedforward,3,output\feedforward\partial_obs\seed_3\20260719_104053,50,-0.7224,-2.7575,0.8657,0.4603,0.1971,,,,,,,,,,,,,,,,,
+feedforward,4,output\feedforward\partial_obs\seed_4\20260719_110446,50,-0.8222,0.815,1.0019,0.4763,0.2088,,,,,,,,,,,,,,,,,
+feedforward,5,output\feedforward\partial_obs\seed_5\20260719_110459,50,-0.7961,-1.665,0.8079,0.4628,0.202,,,,,,,,,,,,,,,,,

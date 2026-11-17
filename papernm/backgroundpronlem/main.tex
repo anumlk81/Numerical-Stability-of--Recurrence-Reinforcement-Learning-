@@ -1,0 +1,165 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}           % Fixed encoding package name
+\usepackage{amsmath, amssymb, amsthm} % Mathematical typesetting
+\usepackage{booktabs}                 % Professional-grade table lines
+\usepackage{geometry}                 % Page layout definitions
+\usepackage{microtype}                % Improves justification and spacing
+\usepackage{titlesec}                 % Custom section styling
+\usepackage{xcolor}                   % Box backgrounds and textcoloring
+
+% --- Layout Configuration ---
+\geometry{
+    top=1in,
+    bottom=1in,
+    left=1in,
+    right=1in
+}
+
+% --- Custom Styling Elements ---
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}[{\titlerule[0.5pt]}]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+% Define a styled blockquote environment for deep highlights
+\newenvironment{technicalnote}{%
+    \medskip
+    \noindent
+    \color{black!90}%
+    \vrule width 3pt \hspace{10pt}%
+    \begin{minipage}{\dimexpr\textwidth-15pt}%
+    \itshape
+}{%
+    \end{minipage}%
+    \medskip
+}
+
+% --- Document Metadata ---
+\title{\textbf{ Numerical Stability in Recurrent RL}}
+\date{Conceptual Background \& Research Objectives \\ \vspace{0.5em} \today}
+
+\begin{document}
+
+\maketitle
+
+\section{The Core Problem: Why RL Agents Fail}
+Reinforcement Learning (RL) agents frequently fail during training. While these failures are commonly attributed to "bad hyperparameters," RL agents differ significantly from supervised learning agents; they are notoriously difficult to train, and diagnosing failures is inherently challenging. The underlying cause is often numerical: unstable gradient dynamics, ill-conditioned weight matrices, and representation drift that compound over time.
+
+\section{The Hard Problem of Stability Verification}
+Proving or certifying global analytical stability in RL is mathematically impossible due to three compounding factors:
+
+\begin{itemize}
+    \item \textbf{Highly Non-linear Policy and Environment:} Deep neural networks are a massive composition of non-linear functions (e.g., the hidden state of an LSTM transitions through time as a non-linear dynamical system). Because of this non-linearity, the system's sensitivity to inputs is non-uniform. A small change in an environment's state vector might cause a negligible change in the network's output action in one region, but a catastrophic, exploding change in another, which is a manifestation of the local curvature phenomenon.
+    
+    \item \textbf{Closed Feedback Loops:} Real-world environments are typically governed by non-linear differential equations. When a non-linear policy is integrated into a non-linear environment, they form a closed feedback loop. The policy outputs an action based on its current weights, and the environment accepts this action to compute the next state via a non-linear transition function. Because both systems are non-linear, errors do not merely add up; they multiply exponentially. This triggers extreme sensitivity to initial conditions.
+    
+    \item \textbf{Dynamically Changing Policy:} In RL, the system transforms while it runs. As the agent interacts with the environment, gradient descent updates the weights, meaning the policy is a moving target. The optimization landscape for RL agents is a deforming dynamical system. The basins of attraction and loss cliffs are continuously shifting, expanding, and swallowing parameters. Because the policy is constantly moving, the agent encounters entirely novel states, leading to unpredictable errors at the input level. These errors propagate through the network, causing massive gradient spikes that completely alter the weights and can destroy hours of stable learning.
+\end{itemize}
+
+\subsection{What This Looks Like in Practice}
+Without explicit regulation of the gradients, RL agents exhibit dangerous behaviors in the long run. Performance frequently starts to deteriorate due to large gradient variance and high sensitivity to step size, eventually losing previous gains and behaving erratically. This occurs because the Lipschitz gains grow unboundedly without regulation.
+
+The policy network's partial gradients, $\partial_{j}\pi_{i}(x)$ (which measure how sensitive each output is to each input) are unconstrained during standard training. As training progresses, gradient updates push these partial derivatives larger and larger. This manifests as the Lipschitz constant of the policy growing unboundedly over iterations when no gradient regulation is applied.
+
+\begin{technicalnote}
+\textbf{The Feedback Spiral:} Conceptually, the policy network becomes progressively more "jumpy," reacting more dramatically to smaller changes in its observations. If this sensitivity happens to increase rewards along a specific trajectory, nothing in the standard training process penalizes it. While the agent remains in forgiving situations, this instability is masked. However, once training pushes the agent into a slightly different, trickier situation, a tiny state perturbation causes a massive overreaction. This overreaction alters the subsequent states, compounding into a feedback spiral that causes performance to collapse completely. This is the same bifurcation phenomenon observed in recurrent neural network (RNN) training dynamics.
+\end{technicalnote}
+
+\section{Why Memory (Recurrence) is Necessary}
+Standard feedforward RL algorithms rely entirely on the Markov property, which assumes the environment's future depends only on its present state, not its past history. When an agent operates in a partially observable environment (a POMDP), the Markov property is broken from the agent's perspective. To make accurate predictions and decisions, the agent requires the history of past observations, necessitating recurrence (e.g., an LSTM).
+
+The recurrent network maintains an internal, evolving hidden state $h_{t}$ that compresses the historical trajectory. The policy then maps both the current observation and this memory state to an action, allowing the network to effectively model complex, higher-order dynamical systems.
+
+\subsection{Computational \& Architectural Trade-Offs}
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{3.2cm} p{4.2cm} p{4.2cm} p{3.2cm}}
+\toprule
+\textbf{Metric / Dimension} & \textbf{LSTM (Recurrent)} & \textbf{Monte Carlo Planning} & \textbf{Feedforward Baseline} \\
+\midrule
+\textbf{Computational Cost} & \textbf{Constant cost} per step. Compression happens in a single forward pass. & \textbf{Exponential cost}. Scales with simulation depth and action branches. & \textbf{Constant cost} per step. \\
+\addlinespace
+\textbf{Memory Footprint} & \textbf{Bounded}. Fixed hidden state vector $h_t$ regardless of episode length. & \textbf{Unbounded}. Stores entire trajectories or parts of search trees. & \textbf{Bounded} strictly by the finite history window size $k$. \\
+\addlinespace
+\textbf{Numerical Vulnerability} & \textbf{High}. Susceptible to exploding matrix products and bifurcations. & \textbf{Low}. Does not rely on compounding recurrent weights. & \textbf{None}. Gradient product is bounded by $k$ steps. \\
+\bottomrule
+\end{tabular}
+\caption{Architectural and computational comparison across model types.}
+\end{table}
+
+\section{Mathematical Pathologies Introduced by Recurrence}
+When an LSTM learns via Backpropagation Through Time (BPTT), it propagates an error signal backward through every time step. At each step, this signal is multiplied by a weight matrix. Repeatedly multiplying a vector by a matrix causes the signal to either grow exponentially or decay to zero, depending heavily on the spectral radius of the matrix.
+
+\subsection{The Fragile Zone \& Spectral Radius}
+The spectral radius $\rho(W)$ of a matrix $W$ is the magnitude of its largest eigenvalue:
+$$\rho(W) = \max_{i} \{|\lambda_i|\}$$
+It dictates the worst-case growth or shrinkage rate under repeated matrix multiplication:
+\begin{itemize}
+    \item $\rho(W) > 1$: Repeated multiplication explodes.
+    \item $\rho(W) < 1$: Repeated multiplication vanishes.
+    \item $\rho(W) \approx 1$: \textbf{The fragile zone}, where information persists but stability is marginal.
+\end{itemize}
+If a system needs to retain long-term memory, its internal memory matrix requires eigenvalues very close to 1. Consequently, the system becomes extremely sensitive to tiny changes; long memory and absolute numerical stability are fundamentally in tension within standard recurrent architectures.
+
+This structural tension explains why optimization-level constraints alone cannot prevent internal numerical collapse. For instance, algorithms like Trust Region Policy Optimization (TRPO) use a localized safety boundary (via a KL-divergence constraint) to guarantee that the agent's visible behavior and performance improve smoothly. However, this safety restriction only applies to external actions (policy space). Underneath these stable outputs, the internal gradient updates, recurrent Jacobians, and hidden memory states are still free to fluctuate wildly. This disconnect allows deep numerical pathologies to grow completely unchecked, which is exactly why measuring spectral radius variance is necessary to capture the true internal health of the network.
+
+\subsection{Spectral Gap, Non-Normality, and Bifurcations}
+The spectral gap measures the distance between the spectral radius and the stability boundary $(1-\rho(W))$, or alternatively, the distance between the largest and second-largest eigenvalues. It quantifies proximity to the edge of stability: a small spectral gap indicates the system is in a dangerous, highly sensitive regime.\\
+The Spectral SSM framework complements this backward-pass perspective by analyzing the forward pass of a linear dynamical system, $x_t = Ax_{t-1} + Bu_t$. Unrolling this system reveals that the state at step $t$ depends on repeated powers of the dynamics matrix, $A^t$. If all eigenvalues of $A$ are bounded away from $1$ by a spectral gap $\delta$ (such that $\rho(A) \leq 1-\delta$), the historical information decays at a rate of $(1-\delta)^t \approx e^{-\delta t}$. This establishes that the effective memory horizon of the network is on the order of $1/\delta$. Consequently, as $\delta \to 0$ to allow for long-term memory retention, the system inherently approaches marginal stability, mirroring the exact numerical fragility encountered during backpropagation.\\
+
+
+In recurrent neural networks, weight matrices are typically non-normal ($W^{T}W \neq WW^{T}$). Non-normal matrices are notorious because their eigenvalues can be highly sensitive to small perturbations. When a matrix has a small spectral gap and is highly non-normal, its eigenvectors can become nearly parallel\\.
+
+When this occurs, the condition number of the eigenvector matrix becomes massive. A high condition number implies that an infinitesimally small update to the weights can cause a disproportionately large, discontinuous leap in the eigenvalues. In dynamical systems, a bifurcation often occurs exactly when the spectral gap shrinks to zero or an eigenvalue crosses a critical threshold. As the network approaches a loss cliff, the spectral gap closes, the system becomes heavily ill-conditioned, and a tiny gradient step can trigger a global structural change---a \textbf{bifurcation} causing eigenvalues to scatter and the spectral radius to shoot up instantaneously.
+
+
+
+\subsection{The Local Curvature Phenomenon}
+The local curvature phenomenon refers to the rapid and extreme increase in the curvature of the error surface in RNNs, specifically in directions along which gradients explode. In general nonlinear RNNs, there exists a direction such that if the gradient explodes along it, the curvature along that same direction also increases exponentially.
+
+This explosion of curvature creates geometric structures in the error surface known as \textbf{high-curvature wells} or \textbf{cliff-like structures}. These walls are perpendicular to the direction of the exploding gradient. Around these walls, the error surface is characterized by a steep cliff followed by a smoother, low-curvature region.
+
+When a standard gradient descent step encounters one of these high-curvature walls, the calculated gradient magnitude becomes massive. This forces the optimization step to jump violently across the valley, moving perpendicular to the wall. This jump can throw the parameters very far into an unrelated region of the parameter space, disrupting the learning process entirely. The higher variance observed in recurrent RL is a direct geometric manifestation of these underlying dynamical events, such as basin crossing.
+
+\subsection{Why Spectral Radius Variance Is Higher under Recurrence}
+To learn long-term dependencies, the spectral radius of the recurrent weight matrix must often hover near or above 1. As the spectral radius increases to accommodate longer sequences, the model enters complex dynamical regimes containing multiple attractors and intricate boundaries between basins of attraction.
+
+In the recurrent case with long sequences, variance is amplified due to:
+\begin{itemize}
+    \item \textbf{Amplified Sensitivity:} The factors transporting error through time are products of Jacobian matrices. When the spectral radius exceeds unity, any small modification to the dynamical system is amplified exponentially over time.
+    \item \textbf{Constant Reorganization:} Because the model must balance between vanishing and exploding gradients, the effective stability of the system---and consequently the observed variance of its spectral radius and gradients---fluctuates wildly as it interacts with high-curvature walls.
+    \item \textbf{Bifurcation Effects:} As training progresses and recurrent weights evolve, the model frequently transitions between stable and unstable regimes via local crossings of global bifurcation boundaries, resulting in severe variance spikes.
+\end{itemize}
+
+\section{Central Hypothesis: Why This Study Measures Spectral Radius Variance}
+This study tracks the spectral radius over training and quantifies its variance. The spectral gap provides the structural explanation for why these values fluctuate. In this context, \textbf{spectral radius variance serves as the measurable empirical fingerprint of the underlying numerical pathology}: the bifurcations, the cliff crossings, the ill-conditioning, and the fundamental tension between long-term memory and numerical stability.
+
+A feedforward network utilizing a finite history window structurally avoids these phenomena: its gradient product is bounded by a fixed number of steps $k$, it contains no recurrent eigenvalues drifting toward 1, and its spectral gap never closes as a function of sequence length.
+
+\begin{technicalnote}
+\textbf{Central Hypothesis:} Spectral radius variance will be measurably and significantly higher for the LSTM than for the feedforward baseline---not due to the choice of optimizer or environment, but because of the mathematical conditions that recurrence inherently demands.
+\end{technicalnote}
+
+\section{Identified Research Gaps}
+Despite the rigorous foundations established in literature like Pascanu's work, several major gaps persist in current RL research:
+\begin{itemize}
+    \item \textbf{Lack of Empirical RL Validation:} Pascanu's theoretical framework has never been empirically measured in an active Reinforcement Learning setting.
+    \item \textbf{Observability Limitations:} Stability analysis in RL has historically only been performed in fully observable settings.
+    \item \textbf{Missing Baseline Comparisons:} No direct numerical comparison between LSTM and feedforward agents on gradient stability metrics currently exists.
+    \item \textbf{The SSM Translation Gap:} The spectral gap problem identified in spectral State-Space Model (SSM) papers has no empirical counterpart or validation in RL.
+    \item \textbf{Isolated Analysis Spaces:} Policy-space stability and gradient-space stability have never been studied simultaneously in the same experiment.
+    \item \textbf{Uncharacterized POMDP Interactions:} The interaction between partial observability and recurrent gradient instability remains completely uncharacterized.
+    \item \textbf{No Standardization:} No reproducible measurement framework exists for parsing this specific problem.
+\end{itemize}
+
+\section{Study Objectives}
+To bridge these gaps, this study will target four primary objectives:
+\begin{enumerate}
+    \item \textbf{Establish a standardized measurement framework} for evaluating numerical stability in recurrent RL.
+    \item \textbf{Empirically test the direct effect of recurrence} on gradient stability under strictly controlled partial observability.
+    \item \textbf{Connect empirical numerical instabilities} back to established, classical theoretical predictions.
+    \item \textbf{Provide a diagnostic baseline} for recurrent RL numerical behavior to inform future algorithmic design and stabilization techniques.
+\end{enumerate}
+
+\end{document}
